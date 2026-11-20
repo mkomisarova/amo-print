@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Print checklist by room</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* VOICE: calm print-room job sheet, exact and quick to scan
+   IDEA: a print shop job ticket — one ticket per room, one line per stack of copies
+   PICTURE: the room tickets themselves, at the top, with tick boxes
+   COLOUR and TYPE: cobalt strip, white tickets, pale zones; Space Grotesk numbers, Inter text
+   LAYOUT: title strip, building filter + grade totals, then grid of room tickets */
+:root{color-scheme:light dark;--bg:light-dark(#eef2ff,#0a0d18);--card:light-dark(#fff,#121828);--ink:light-dark(#0b1020,#e8ecff);--mute:light-dark(#5a6380,#9aa3c4);--line:light-dark(#d5dcf5,#252e4a);--cob:#1240e0;--done:light-dark(#e6f4ea,#11291b);--doneink:light-dark(#1d7a3a,#7fd69a)}
+:root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
+*{box-sizing:border-box;min-width:0}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 Inter,system-ui,sans-serif;overflow-x:clip}
+.strip{background:var(--cob);color:#fff;padding:22px max(4vw,16px) 20px}
+.strip h1{font:600 clamp(26px,4vw,38px)/1.05 "Space Grotesk",sans-serif;margin:0 0 6px;text-wrap:balance}
+.strip p{margin:0;opacity:.9;max-width:70ch}
+.wrap{max-width:1240px;margin:0 auto;padding:18px max(4vw,16px) 40px}
+.bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:14px}
+.bar button{font:500 15px Inter,sans-serif;min-height:44px;padding:0 16px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--ink);cursor:pointer}
+.bar button[aria-pressed=true]{background:var(--cob);color:#fff;border-color:var(--cob)}
+.bar button:focus-visible,input:focus-visible{outline:3px solid #ff2e7e;outline-offset:2px}
+.prog{margin-left:auto;font:600 15px "Space Grotesk",sans-serif;color:var(--mute)}
+.tot{display:grid;grid-template-columns:repeat(auto-fit,minmax(92px,1fr));gap:8px;margin-bottom:20px}
+.tot div{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+.tot b{display:block;font:600 22px "Space Grotesk",sans-serif}
+.tot span{font-size:13px;color:var(--mute)}
+h2{font:600 22px "Space Grotesk",sans-serif;margin:26px 0 10px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px}
+.room{background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden;break-inside:avoid}
+.room header{display:flex;justify-content:space-between;align-items:baseline;gap:8px;padding:10px 14px;border-bottom:1px dashed var(--line)}
+.room h3{margin:0;font:600 20px "Space Grotesk",sans-serif}
+.room header small{color:var(--mute);font-size:13px;white-space:nowrap}
+.room.all header{background:var(--done)}
+.room.all h3{color:var(--doneink)}
+label{display:grid;grid-template-columns:28px 1fr auto;align-items:center;gap:10px;padding:8px 14px;min-height:44px;cursor:pointer;border-top:1px solid var(--line)}
+label:first-of-type{border-top:0}
+input{width:22px;height:22px;accent-color:var(--cob);margin:0}
+.gr{font-weight:600}.gr em{font-style:normal;font-weight:400;color:var(--mute);font-size:13px;margin-left:6px}
+.n{font:600 20px "Space Grotesk",sans-serif;white-space:nowrap;text-align:right}
+.n small{font:400 13px Inter,sans-serif;color:var(--mute)}
+label.ok{background:var(--done)}label.ok .gr,label.ok .n{color:var(--doneink);text-decoration:line-through}
+.sync{margin:0 0 12px;font:500 14px Inter,sans-serif;color:var(--mute)}
+.note{margin-top:28px;font-size:14px;color:var(--mute);max-width:75ch}
+.reset{font:500 14px Inter,sans-serif;background:none;border:0;color:var(--mute);text-decoration:underline;cursor:pointer;min-height:44px}
+</style></head><body>
+<div class="strip"><h1>What to print, room by room</h1>
+<p>Each room lists the problem sets to print and how many copies. 4th and 5th graders both get the 5th-grade problems, so they're one stack. Tick a stack off as it comes out of the printer.</p></div>
+<div class="wrap">
+<p class="sync" id="sync">Loading…</p>
+<div class="bar" id="bar"></div>
+<div class="tot" id="tot"></div>
+<div id="list"></div>
+<p class="note">Rooms with nobody seated aren't shown (DM 223, Aspazija 504, 507, 508, 510). All numbers come straight from the room sheet, with 4th + 5th grade added together. The grand total is 2,836 copies, which matches the sheet's own totals. <button class="reset" id="reset">Clear all ticks</button></p>
+</div>
+<script>
+{
+const R=[{"b": "ZM", "r": "103./104. Beta/Gamma", "g": [["5", 46, "18+28"], ["6", 1, ""], ["9", 48, ""], ["11", 1, ""]]}, {"b": "ZM", "r": "105.Delta", "g": [["5", 28, ""], ["9", 28, ""]]}, {"b": "ZM", "r": "106.Omega", "g": [["5", 35, ""], ["9", 35, ""]]}, {"b": "ZM", "r": "201.", "g": [["5", 20, ""], ["9", 20, ""]]}, {"b": "ZM", "r": "202.", "g": [["5", 16, ""], ["9", 16, ""]]}, {"b": "ZM", "r": "203.", "g": [["5", 19, ""], ["9", 19, ""]]}, {"b": "ZM", "r": "204.", "g": [["5", 19, ""], ["9", 19, ""]]}, {"b": "ZM", "r": "205.", "g": [["5", 16, ""], ["9", 16, ""]]}, {"b": "ZM", "r": "206.", "g": [["5", 18, ""], ["9", 18, ""]]}, {"b": "ZM", "r": "207.", "g": [["5", 21, ""], ["9", 21, ""]]}, {"b": "ZM", "r": "301.", "g": [["5", 36, ""], ["9", 36, ""]]}, {"b": "ZM", "r": "401.", "g": [["5", 31, ""], ["9", 32, ""]]}, {"b": "ZM", "r": "501.", "g": [["5", 50, ""], ["9", 40, ""]]}, {"b": "DM", "r": "106. Magnum", "g": [["5", 57, ""], ["6", 53, ""], ["7", 70, ""], ["8", 80, ""], ["9", 24, ""]]}, {"b": "DM", "r": "107. Sinistrum", "g": [["7", 50, ""], ["8", 56, ""]]}, {"b": "DM", "r": "108. Dextrum I", "g": [["6", 30, ""], ["7", 25, ""]]}, {"b": "DM", "r": "109. Dextrum II", "g": [["6", 30, ""], ["7", 25, ""]]}, {"b": "DM", "r": "217.", "g": [["6", 30, ""], ["7", 25, ""]]}, {"b": "DM", "r": "301.", "g": [["6", 12, ""], ["8", 14, ""]]}, {"b": "DM", "r": "319.", "g": [["6", 27, ""], ["8", 28, ""]]}, {"b": "DM", "r": "320A.", "g": [["6", 15, ""], ["8", 17, ""]]}, {"b": "DM", "r": "320B.", "g": [["7", 11, ""], ["8", 15, ""]]}, {"b": "DM", "r": "334.", "g": [["6", 30, ""], ["7", 25, ""]]}, {"b": "DM", "r": "335./336.", "g": [["6", 47, ""], ["8", 47, ""]]}, {"b": "DM", "r": "401.", "g": [["6", 12, ""], ["8", 14, ""]]}, {"b": "DM", "r": "405.", "g": [["7", 15, ""], ["8", 19, ""]]}, {"b": "DM", "r": "406.", "g": [["6", 16, ""], ["8", 18, ""]]}, {"b": "DM", "r": "408.", "g": [["6", 11, ""], ["8", 13, ""]]}, {"b": "DM", "r": "433.", "g": [["6", 19, ""], ["7", 15, ""]]}, {"b": "DM", "r": "501.", "g": [["6", 15, ""], ["7", 11, ""]]}, {"b": "DM", "r": "601.", "g": [["6", 15, ""], ["7", 11, ""]]}, {"b": "DM", "r": "702. Aeris", "g": [["6", 30, ""], ["7", 25, ""]]}, {"b": "Aspazija", "r": "302.", "g": [["10", 25, ""], ["12", 25, ""]]}, {"b": "Aspazija", "r": "305.", "g": [["10", 30, ""], ["12", 30, ""]]}, {"b": "Aspazija", "r": "306.", "g": [["11", 34, ""], ["12", 34, ""]]}, {"b": "Aspazija", "r": "324.", "g": [["11", 34, ""], ["12", 34, ""]]}, {"b": "Aspazija", "r": "402.", "g": [["10", 27, ""], ["12", 27, ""]]}, {"b": "Aspazija", "r": "404.", "g": [["10", 22, ""], ["11", 27, ""]]}, {"b": "Aspazija", "r": "406.", "g": [["11", 23, ""], ["12", 23, ""]]}, {"b": "Aspazija", "r": "407.", "g": [["10", 36, ""], ["11", 36, ""]]}, {"b": "Aspazija", "r": "409.", "g": [["10", 32, ""], ["11", 32, ""]]}, {"b": "Aspazija", "r": "412.", "g": [["10", 31, ""], ["11", 31, ""]]}, {"b": "Aspazija", "r": "414.", "g": [["11", 30, ""], ["12", 30, ""]]}, {"b": "Aspazija", "r": "415.", "g": [["10", 15, ""], ["11", 15, ""]]}, {"b": "Aspazija", "r": "416.", "g": [["10", 21, ""], ["11", 21, ""]]}, {"b": "Aspazija", "r": "417.", "g": [["10", 20, ""], ["11", 20, ""]]}, {"b": "Aspazija", "r": "503.", "g": [["10", 20, ""], ["11", 20, ""]]}, {"b": "Aspazija", "r": "513.", "g": [["10", 30, ""], ["11", 30, ""]]}, {"b": "Aspazija", "r": "514.", "g": [["10", 33, ""], ["11", 33, ""]]}, {"b": "Aspazija", "r": "515.", "g": [["10", 35, ""], ["11", 35, ""]]}, {"b": "Aspazija", "r": "517.", "g": [["10", 14, ""], ["11", 14, ""]]}];
+const B=[["all","All buildings"],["ZM","ZM"],["DM","DM"],["Aspazija","Aspazija"]];
+let f="all",done={};
+const LS="printdone",COL="printed";
+try{done=JSON.parse(localStorage.getItem(LS)||"{}")}catch(e){}
+let db=null,live=false,timer=null;
+const sid=k=>k.replace(/[^A-Za-z0-9_\-.~:@+]/g,"_");
+const saveLocal=()=>{try{localStorage.setItem(LS,JSON.stringify(done))}catch(e){}};
+const status=t=>{const s=document.getElementById("sync");if(s)s.textContent=t};
+async function toggle(k,on){
+  if(on)done[k]=1;else delete done[k];
+  saveLocal();render();
+  if(!db)return;
+  const ref=db.collection(COL).doc(sid(k));
+  try{on?await ref.set({k:k,at:Date.now()}):await ref.delete()}
+  catch(e){status("Couldn't save that tick to the cloud. Check your connection and tick it again.")}
+}
+async function startSync(){
+  try{db=await claude.use("db")}catch(e){db=null}
+  if(!db){status("Saving on this device only (sync isn't available here).");return}
+  status("Connecting…");
+  timer=setTimeout(()=>status("Can't reach the sync server yet. Ticks are saved on this device for now."),10000);
+  let first=true;
+  db.collection(COL).onSnapshot(snap=>{
+    const m={};snap.docs.forEach(d=>{const v=d.data();if(v&&typeof v.k==="string")m[v.k]=1});
+    if(!snap.metadata.fromCache){
+      clearTimeout(timer);live=true;
+      if(first){first=false;
+        const local=Object.keys(done).filter(k=>!m[k]);
+        if(snap.empty&&local.length){(async()=>{for(const k of local){try{await db.collection(COL).doc(sid(k)).set({k:k,at:Date.now()})}catch(e){}}})();local.forEach(k=>m[k]=1)}
+      }
+      status("✓ Synced: ticks show up on your phone and computer.");
+    }
+    done=m;saveLocal();render();
+  },()=>{clearTimeout(timer);status("Sync stopped. Reload the page to reconnect. Ticks are saved on this device for now.")});
+}
+
+const key=(r,g)=>r.b+"|"+r.r+"|"+g;
+const gname=g=>g==="5"?"5th grade":g+"th grade";
+function render(){
+  const rs=R.filter(r=>f==="all"||r.b===f);
+  document.getElementById("bar").innerHTML=B.map(([k,l])=>`<button data-f="${k}" aria-pressed="${k===f}">${l}</button>`).join("")+`<span class="prog" id="prog"></span>`;
+  const t={};let all=0,dn=0;
+  rs.forEach(r=>r.g.forEach(([g,n])=>{t[g]=(t[g]||0)+n;all++;if(done[key(r,g)])dn++}));
+  const order=["5","6","7","8","9","10","11","12"].filter(g=>t[g]);
+  const sum=order.reduce((a,g)=>a+t[g],0);
+  document.getElementById("tot").innerHTML=order.map(g=>`<div><b>${t[g]}</b><span>${gname(g)}${g==="5"?" (incl. 4th)":""}</span></div>`).join("")+`<div><b>${sum.toLocaleString("en")}</b><span>copies total</span></div>`;
+  document.getElementById("prog").textContent=`${dn} of ${all} stacks printed`;
+  const groups=f==="all"?["ZM","DM","Aspazija"]:[f];
+  document.getElementById("list").innerHTML=groups.map(b=>`<h2>${b}</h2><div class="grid">`+rs.filter(r=>r.b===b).map(r=>{
+    const ok=r.g.every(([g])=>done[key(r,g)]);
+    const tot=r.g.reduce((a,x)=>a+x[1],0);
+    return `<section class="room${ok?" all":""}"><header><h3>${r.r}</h3><small>${tot} copies</small></header>`+r.g.map(([g,n,s])=>{const k=key(r,g);return `<label class="${done[k]?"ok":""}"><input type="checkbox" data-k="${k}" ${done[k]?"checked":""}><span class="gr">${gname(g)}${s?`<em>4th + 5th: ${s}</em>`:""}</span><span class="n">${n} <small>copies</small></span></label>`}).join("")+`</section>`}).join("")+`</div>`).join("");
+}
+document.addEventListener("click",e=>{const b=e.target.closest("button[data-f]");if(b){f=b.dataset.f;render()}});
+document.addEventListener("change",e=>{const k=e.target.dataset.k;if(k)toggle(k,e.target.checked)});
+let armed=null;document.getElementById("reset").addEventListener("click",async e=>{const b=e.currentTarget;if(!armed){b.textContent="Tap again to clear every tick on all devices";armed=setTimeout(()=>{armed=null;b.textContent="Clear all ticks"},4000);return}clearTimeout(armed);armed=null;b.textContent="Clear all ticks";const ks=Object.keys(done);done={};saveLocal();render();if(db){for(const k of ks){try{await db.collection(COL).doc(sid(k)).delete()}catch(e){}}}});
+render();startSync();
+}
+</script></body></html>

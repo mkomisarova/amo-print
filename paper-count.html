@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Paper count by room</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* VOICE: calm print-room job sheet, exact and quick to scan
+   IDEA: a stock-room tally sheet — one line per room, sheets counted and ticked
+   PICTURE: the tally list itself, at the top, with tick boxes and big counts
+   COLOUR and TYPE: cobalt strip, white rows, pale zones; Space Grotesk numbers, Inter text
+   LAYOUT: title strip, building filter + totals, then a list per building */
+:root{color-scheme:light dark;--bg:light-dark(#eef2ff,#0a0d18);--card:light-dark(#fff,#121828);--ink:light-dark(#0b1020,#e8ecff);--mute:light-dark(#5a6380,#9aa3c4);--line:light-dark(#d5dcf5,#252e4a);--cob:#1240e0;--done:light-dark(#e6f4ea,#11291b);--doneink:light-dark(#1d7a3a,#7fd69a)}
+:root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
+*{box-sizing:border-box;min-width:0}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 Inter,system-ui,sans-serif;overflow-x:clip}
+.strip{background:var(--cob);color:#fff;padding:22px max(4vw,16px) 20px}
+.strip h1{font:600 clamp(26px,4vw,38px)/1.05 "Space Grotesk",sans-serif;margin:0 0 6px;text-wrap:balance}
+.strip p{margin:0;opacity:.9;max-width:70ch}
+.wrap{max-width:1240px;margin:0 auto;padding:18px max(4vw,16px) 40px}
+.bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:14px}
+.bar button{font:500 15px Inter,sans-serif;min-height:44px;padding:0 16px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--ink);cursor:pointer}
+.bar button[aria-pressed=true]{background:var(--cob);color:#fff;border-color:var(--cob)}
+.bar button:focus-visible,input:focus-visible{outline:3px solid #ff2e7e;outline-offset:2px}
+.prog{margin-left:auto;font:600 15px "Space Grotesk",sans-serif;color:var(--mute)}
+.tot{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-bottom:20px}
+.tot div{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px 12px}
+.tot b{display:block;font:600 24px "Space Grotesk",sans-serif}
+.tot span{font-size:13px;color:var(--mute)}
+h2{display:flex;justify-content:space-between;align-items:baseline;gap:10px;font:600 22px "Space Grotesk",sans-serif;margin:26px 0 10px}
+h2 small{font:500 14px Inter,sans-serif;color:var(--mute)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px}
+label{display:grid;grid-template-columns:26px 1fr auto;align-items:center;gap:12px;padding:10px 14px;min-height:56px;cursor:pointer;background:var(--card);border:1px solid var(--line);border-radius:12px}
+input{width:22px;height:22px;accent-color:var(--cob);margin:0}
+.rm{font:600 18px "Space Grotesk",sans-serif}
+.rm em{display:block;font:400 13px Inter,sans-serif;color:var(--mute);font-style:normal}
+.n{font:600 26px "Space Grotesk",sans-serif;white-space:nowrap;text-align:right}
+.n small{font:400 13px Inter,sans-serif;color:var(--mute)}
+label.ok{background:var(--done);border-color:transparent}label.ok .rm,label.ok .n{color:var(--doneink)}label.ok .n{text-decoration:line-through}
+.sync{margin:0 0 12px;font:500 14px Inter,sans-serif;color:var(--mute)}
+.note{margin-top:28px;font-size:14px;color:var(--mute);max-width:75ch}
+.reset{font:500 14px Inter,sans-serif;background:none;border:0;color:var(--mute);text-decoration:underline;cursor:pointer;min-height:44px}
+</style></head><body>
+<div class="strip"><h1>Paper to count, room by room</h1>
+<p>Every room needs 2 sheets per participant, whatever the grade. Count out the stack, then tick the room off.</p></div>
+<div class="wrap">
+<p class="sync" id="sync">Loading…</p>
+<div class="bar" id="bar"></div>
+<div class="tot" id="tot"></div>
+<div id="list"></div>
+<p class="note">Participants are all grades added together (4th–12th) from the room sheet. Rooms with nobody seated aren't shown (DM 223, Aspazija 504, 507, 508, 510). <button class="reset" id="reset">Clear all ticks</button></p>
+</div>
+<script>
+{
+const R=[{"b": "ZM", "r": "103./104. Beta/Gamma", "s": 96}, {"b": "ZM", "r": "105.Delta", "s": 56}, {"b": "ZM", "r": "106.Omega", "s": 70}, {"b": "ZM", "r": "201.", "s": 40}, {"b": "ZM", "r": "202.", "s": 32}, {"b": "ZM", "r": "203.", "s": 38}, {"b": "ZM", "r": "204.", "s": 38}, {"b": "ZM", "r": "205.", "s": 32}, {"b": "ZM", "r": "206.", "s": 36}, {"b": "ZM", "r": "207.", "s": 42}, {"b": "ZM", "r": "301.", "s": 72}, {"b": "ZM", "r": "401.", "s": 63}, {"b": "ZM", "r": "501.", "s": 90}, {"b": "DM", "r": "106. Magnum", "s": 284}, {"b": "DM", "r": "107. Sinistrum", "s": 106}, {"b": "DM", "r": "108. Dextrum I", "s": 55}, {"b": "DM", "r": "109. Dextrum II", "s": 55}, {"b": "DM", "r": "217.", "s": 55}, {"b": "DM", "r": "301.", "s": 26}, {"b": "DM", "r": "319.", "s": 55}, {"b": "DM", "r": "320A.", "s": 32}, {"b": "DM", "r": "320B.", "s": 26}, {"b": "DM", "r": "334.", "s": 55}, {"b": "DM", "r": "335./336.", "s": 94}, {"b": "DM", "r": "401.", "s": 26}, {"b": "DM", "r": "405.", "s": 34}, {"b": "DM", "r": "406.", "s": 34}, {"b": "DM", "r": "408.", "s": 24}, {"b": "DM", "r": "433.", "s": 34}, {"b": "DM", "r": "501.", "s": 26}, {"b": "DM", "r": "601.", "s": 26}, {"b": "DM", "r": "702. Aeris", "s": 55}, {"b": "Aspazija", "r": "302.", "s": 50}, {"b": "Aspazija", "r": "305.", "s": 60}, {"b": "Aspazija", "r": "306.", "s": 68}, {"b": "Aspazija", "r": "324.", "s": 68}, {"b": "Aspazija", "r": "402.", "s": 54}, {"b": "Aspazija", "r": "404.", "s": 49}, {"b": "Aspazija", "r": "406.", "s": 46}, {"b": "Aspazija", "r": "407.", "s": 72}, {"b": "Aspazija", "r": "409.", "s": 64}, {"b": "Aspazija", "r": "412.", "s": 62}, {"b": "Aspazija", "r": "414.", "s": 60}, {"b": "Aspazija", "r": "415.", "s": 30}, {"b": "Aspazija", "r": "416.", "s": 42}, {"b": "Aspazija", "r": "417.", "s": 40}, {"b": "Aspazija", "r": "503.", "s": 40}, {"b": "Aspazija", "r": "513.", "s": 60}, {"b": "Aspazija", "r": "514.", "s": 66}, {"b": "Aspazija", "r": "515.", "s": 70}, {"b": "Aspazija", "r": "517.", "s": 28}];
+const B=[["all","All buildings"],["ZM","ZM"],["DM","DM"],["Aspazija","Aspazija"]];
+let f="all",done={};
+const LS="paperdone",COL="counted";
+try{done=JSON.parse(localStorage.getItem(LS)||"{}")}catch(e){}
+let db=null,live=false,timer=null;
+const sid=k=>k.replace(/[^A-Za-z0-9_\-.~:@+]/g,"_");
+const saveLocal=()=>{try{localStorage.setItem(LS,JSON.stringify(done))}catch(e){}};
+const status=t=>{const s=document.getElementById("sync");if(s)s.textContent=t};
+async function toggle(k,on){
+  if(on)done[k]=1;else delete done[k];
+  saveLocal();render();
+  if(!db)return;
+  const ref=db.collection(COL).doc(sid(k));
+  try{on?await ref.set({k:k,at:Date.now()}):await ref.delete()}
+  catch(e){status("Couldn't save that tick to the cloud. Check your connection and tick it again.")}
+}
+async function startSync(){
+  try{db=await claude.use("db")}catch(e){db=null}
+  if(!db){status("Saving on this device only (sync isn't available here).");return}
+  status("Connecting…");
+  timer=setTimeout(()=>status("Can't reach the sync server yet. Ticks are saved on this device for now."),10000);
+  let first=true;
+  db.collection(COL).onSnapshot(snap=>{
+    const m={};snap.docs.forEach(d=>{const v=d.data();if(v&&typeof v.k==="string")m[v.k]=1});
+    if(!snap.metadata.fromCache){
+      clearTimeout(timer);live=true;
+      if(first){first=false;
+        const local=Object.keys(done).filter(k=>!m[k]);
+        if(snap.empty&&local.length){(async()=>{for(const k of local){try{await db.collection(COL).doc(sid(k)).set({k:k,at:Date.now()})}catch(e){}}})();local.forEach(k=>m[k]=1)}
+      }
+      status("✓ Synced: ticks show up on your phone and computer.");
+    }
+    done=m;saveLocal();render();
+  },()=>{clearTimeout(timer);status("Sync stopped. Reload the page to reconnect. Ticks are saved on this device for now.")});
+}
+
+const key=r=>r.b+"|"+r.r;
+const fmt=n=>n.toLocaleString("en");
+function render(){
+  const rs=R.filter(r=>f==="all"||r.b===f);
+  document.getElementById("bar").innerHTML=B.map(([k,l])=>`<button data-f="${k}" aria-pressed="${k===f}">${l}</button>`).join("")+`<span class="prog" id="prog"></span>`;
+  const st=rs.reduce((a,r)=>a+r.s,0),dn=rs.filter(r=>done[key(r)]),left=rs.filter(r=>!done[key(r)]).reduce((a,r)=>a+r.s*2,0);
+  document.getElementById("tot").innerHTML=`<div><b>${fmt(st*2)}</b><span>sheets in total</span></div><div><b>${fmt(left)}</b><span>sheets still to count</span></div><div><b>${fmt(st)}</b><span>participants</span></div>`;
+  document.getElementById("prog").textContent=`${dn.length} of ${rs.length} rooms counted`;
+  const groups=f==="all"?["ZM","DM","Aspazija"]:[f];
+  document.getElementById("list").innerHTML=groups.map(b=>{const g=rs.filter(r=>r.b===b);return `<h2>${b}<small>${fmt(g.reduce((a,r)=>a+r.s*2,0))} sheets</small></h2><div class="grid">`+g.map(r=>{const k=key(r);return `<label class="${done[k]?"ok":""}"><input type="checkbox" data-k="${k}" ${done[k]?"checked":""}><span class="rm">${r.r}<em>${r.s} participants × 2</em></span><span class="n">${r.s*2} <small>sheets</small></span></label>`}).join("")+`</div>`}).join("");
+}
+document.addEventListener("click",e=>{const b=e.target.closest("button[data-f]");if(b){f=b.dataset.f;render()}});
+document.addEventListener("change",e=>{const k=e.target.dataset.k;if(k)toggle(k,e.target.checked)});
+let armed=null;document.getElementById("reset").addEventListener("click",async e=>{const b=e.currentTarget;if(!armed){b.textContent="Tap again to clear every tick on all devices";armed=setTimeout(()=>{armed=null;b.textContent="Clear all ticks"},4000);return}clearTimeout(armed);armed=null;b.textContent="Clear all ticks";const ks=Object.keys(done);done={};saveLocal();render();if(db){for(const k of ks){try{await db.collection(COL).doc(sid(k)).delete()}catch(e){}}}});
+render();startSync();
+}
+</script></body></html>
